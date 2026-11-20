@@ -1,0 +1,124 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 700" width="1000" height="700" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="freccia" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+    </marker>
+    <style>
+      .corsia { fill: #f8fafc; stroke: #cbd5e1; stroke-width: 1; }
+      .etichetta { font-size: 13px; font-weight: 600; fill: #64748b; letter-spacing: 0.5px; }
+      .titolo { font-size: 14px; font-weight: 700; fill: #0f172a; }
+      .testo { font-size: 12px; fill: #334155; }
+      .nota { font-size: 11px; fill: #64748b; font-style: italic; }
+      .linea { fill: none; stroke: #475569; stroke-width: 1.6; marker-end: url(#freccia); }
+      .acq { fill: #e2e8f0; stroke: #64748b; }
+      .elab { fill: #dbeafe; stroke: #2563eb; }
+      .voci { fill: #dcfce7; stroke: #16a34a; }
+      .llm { fill: #fef3c7; stroke: #d97706; }
+      .out { fill: #f1f5f9; stroke: #0f172a; }
+    </style>
+  </defs>
+
+  <rect width="1000" height="700" fill="#ffffff"/>
+  <text x="500" y="32" text-anchor="middle" font-size="18" font-weight="700" fill="#0f172a">Registratore riunioni: architettura</text>
+  <text x="500" y="52" text-anchor="middle" class="nota">Elaborazione interamente locale: nessun dato lascia il computer</text>
+
+  <g transform="translate(0,60)">
+    <!-- Corsie -->
+    <rect class="corsia" x="20" y="10" width="960" height="150" rx="8"/>
+    <text class="etichetta" x="36" y="32">1. ACQUISIZIONE (interfaccia tkinter)</text>
+    <rect class="corsia" x="20" y="180" width="960" height="220" rx="8"/>
+    <text class="etichetta" x="36" y="202">2. ELABORAZIONE (thread in background, coda dei lavori)</text>
+    <rect class="corsia" x="20" y="420" width="960" height="210" rx="8"/>
+    <text class="etichetta" x="36" y="442">3. NOMI, PROFILI E RIASSUNTO</text>
+
+    <!-- Corsia 1 -->
+    <rect class="acq" x="60" y="60" width="180" height="70" rx="6"/>
+    <text class="titolo" x="150" y="90" text-anchor="middle">Microfono</text>
+    <text class="testo" x="150" y="110" text-anchor="middle">dispositivo MME</text>
+
+    <rect class="acq" x="310" y="60" width="230" height="70" rx="6"/>
+    <text class="titolo" x="425" y="86" text-anchor="middle">Registratore</text>
+    <text class="testo" x="425" y="104" text-anchor="middle">audio.wav PCM 16 bit</text>
+    <text class="testo" x="425" y="120" text-anchor="middle">scrittura continua, pausa</text>
+
+    <rect class="acq" x="610" y="60" width="210" height="70" rx="6"/>
+    <text class="titolo" x="715" y="86" text-anchor="middle">File esistente</text>
+    <text class="testo" x="715" y="104" text-anchor="middle">wav, mp3, m4a, mp4, mkv</text>
+    <text class="testo" x="715" y="120" text-anchor="middle">"Trascrivi file..."</text>
+
+    <path class="linea" d="M240,95 H306"/>
+
+    <!-- Corsia 1 verso corsia 2 -->
+    <path class="linea" d="M425,130 V222 H122 V246"/>
+    <path class="linea" d="M715,130 V222 H425"/>
+
+    <!-- Corsia 2 -->
+    <rect class="elab" x="40" y="250" width="165" height="100" rx="6"/>
+    <text class="titolo" x="122" y="282" text-anchor="middle">Decodifica</text>
+    <text class="testo" x="122" y="302" text-anchor="middle">PyAV</text>
+    <text class="testo" x="122" y="318" text-anchor="middle">16 kHz mono</text>
+
+    <rect class="elab" x="235" y="250" width="165" height="100" rx="6"/>
+    <text class="titolo" x="317" y="282" text-anchor="middle">Segmentazione</text>
+    <text class="testo" x="317" y="302" text-anchor="middle">pyannote 3.0 (ONNX)</text>
+    <text class="testo" x="317" y="318" text-anchor="middle">finestre 10 s, passo 5 s</text>
+    <text class="testo" x="317" y="334" text-anchor="middle">fino a 3 voci locali</text>
+
+    <rect class="elab" x="430" y="250" width="165" height="100" rx="6"/>
+    <text class="titolo" x="512" y="282" text-anchor="middle">Impronte vocali</text>
+    <text class="testo" x="512" y="302" text-anchor="middle">ERes2NetV2</text>
+    <text class="testo" x="512" y="318" text-anchor="middle">una per voce</text>
+    <text class="testo" x="512" y="334" text-anchor="middle">e per finestra</text>
+
+    <rect class="elab" x="625" y="250" width="165" height="100" rx="6"/>
+    <text class="titolo" x="707" y="282" text-anchor="middle">Raggruppamento</text>
+    <text class="testo" x="707" y="302" text-anchor="middle">centratura per sessione</text>
+    <text class="testo" x="707" y="318" text-anchor="middle">AHC coseno, soglia 0,8</text>
+    <text class="testo" x="707" y="334" text-anchor="middle">rifinitura centroidi</text>
+
+    <rect class="elab" x="820" y="250" width="150" height="100" rx="6"/>
+    <text class="titolo" x="895" y="282" text-anchor="middle">Trascrizione</text>
+    <text class="testo" x="895" y="302" text-anchor="middle">faster-whisper</text>
+    <text class="testo" x="895" y="318" text-anchor="middle">large-v3-turbo</text>
+    <text class="testo" x="895" y="334" text-anchor="middle">per intervento, GPU</text>
+
+    <path class="linea" d="M205,300 H231"/>
+    <path class="linea" d="M400,300 H426"/>
+    <path class="linea" d="M595,300 H621"/>
+    <path class="linea" d="M790,300 H816"/>
+
+    <!-- Corsia 2 verso corsia 3 -->
+    <path class="linea" d="M895,350 V458 H400 V476"/>
+    <text class="nota" x="650" y="452" text-anchor="middle">interventi, impronte per persona</text>
+
+    <!-- Corsia 3 -->
+    <rect class="voci" x="40" y="480" width="200" height="90" rx="6"/>
+    <text class="titolo" x="140" y="508" text-anchor="middle">Profili vocali</text>
+    <text class="testo" x="140" y="528" text-anchor="middle">profili_voci.json</text>
+    <text class="testo" x="140" y="544" text-anchor="middle">media mobile delle impronte</text>
+
+    <rect class="voci" x="300" y="480" width="200" height="90" rx="6"/>
+    <text class="titolo" x="400" y="508" text-anchor="middle">Chi è chi?</text>
+    <text class="testo" x="400" y="528" text-anchor="middle">abbinamento automatico</text>
+    <text class="testo" x="400" y="544" text-anchor="middle">ascolto e conferma nomi</text>
+
+    <rect class="llm" x="560" y="480" width="180" height="90" rx="6"/>
+    <text class="titolo" x="650" y="508" text-anchor="middle">Riassunto</text>
+    <text class="testo" x="650" y="528" text-anchor="middle">Ollama, qwen3.5:9b</text>
+    <text class="testo" x="650" y="544" text-anchor="middle">map-reduce a blocchi</text>
+
+    <rect class="out" x="800" y="480" width="170" height="90" rx="6"/>
+    <text class="titolo" x="885" y="508" text-anchor="middle">Risultati</text>
+    <text class="testo" x="885" y="528" text-anchor="middle">trascrizione.txt / .json</text>
+    <text class="testo" x="885" y="544" text-anchor="middle">riassunto.md</text>
+
+    <path class="linea" d="M240,508 H296"/>
+    <text class="nota" x="268" y="500" text-anchor="middle">lettura</text>
+    <path class="linea" d="M300,546 H244"/>
+    <text class="nota" x="272" y="562" text-anchor="middle">aggiorna</text>
+    <path class="linea" d="M500,525 H556"/>
+    <path class="linea" d="M740,525 H796"/>
+    <path class="linea" d="M400,570 V605 H885 V574"/>
+    <text class="nota" x="642" y="599" text-anchor="middle">trascrizione con i nomi</text>
+  </g>
+</svg>

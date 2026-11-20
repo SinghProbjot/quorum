@@ -1,0 +1,13 @@
+faster-whisper==1.2.1
+av>=15,<16
+ctranslate2==4.9.0
+onnxruntime==1.32.0
+sherpa-onnx==2.0.2
+numpy==2.5.5
+scipy==1.18.1
+sounddevice==0.5.6
+soundfile==0.14.0
+# Accelerazione GPU NVIDIA (facoltativa: senza GPU si usa la CPU)
+nvidia-cublas-cu12==12.9.2.10
+nvidia-cudnn-cu12==9.28.1.4
+nvidia-cuda-nvrtc-cu12==12.9.86

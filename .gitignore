@@ -1,0 +1,11 @@
+# Ambiente Python
+.venv/
+__pycache__/
+*.pyc
+
+# Modelli (si scaricano con scarica_modelli.py)
+models/
+
+# Dati personali: registrazioni, trascrizioni e impronte vocali
+registrazioni/
+profili_voci.json
