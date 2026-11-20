@@ -1,5 +1,5 @@
 """
-Registratore riunioni - registra dal microfono, trascrive in locale (Whisper)
+Quorum: registratore riunioni. Registra dal microfono, trascrive in locale (Whisper),
 riconosce le voci dei partecipanti (diarizzazione + profili vocali) e prepara
 il riassunto con un modello linguistico locale. Nessun dato lascia il PC.
 
@@ -361,7 +361,7 @@ def run_gui():
 
     REC_DIR.mkdir(exist_ok=True)
     root = tk.Tk()
-    root.title("Registratore riunioni")
+    root.title("Quorum")
     root.geometry("520x510")
     root.minsize(480, 490)
     try:

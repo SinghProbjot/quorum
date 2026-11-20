@@ -1,214 +1,216 @@
-# Registratore riunioni
+# Quorum
 
-Applicazione desktop per Windows che registra le riunioni, ne produce la trascrizione in italiano, attribuisce ogni intervento alla persona che lo ha pronunciato e redige un verbale sintetico.
+Quorum is a Windows desktop application that records meetings, transcribes them, attributes every turn to the person who spoke it and drafts concise meeting minutes.
 
-L'intera elaborazione avviene sul computer dell'utente. Audio, trascrizioni, impronte vocali e riassunti non vengono mai inviati a servizi esterni.
+All processing runs on the user's own computer. Audio, transcripts, voice embeddings and summaries are never sent to external services.
 
-## Indice
+The user interface and the generated documents are in Italian, and transcription is tuned for Italian speech.
 
-1. [Funzionalità](#funzionalità)
-2. [Architettura](#architettura)
-3. [Requisiti](#requisiti)
-4. [Installazione](#installazione)
-5. [Utilizzo](#utilizzo)
-6. [File prodotti](#file-prodotti)
-7. [Parametri di configurazione](#parametri-di-configurazione)
-8. [Validazione e prestazioni](#validazione-e-prestazioni)
-9. [Struttura del progetto](#struttura-del-progetto)
-10. [Riservatezza dei dati](#riservatezza-dei-dati)
-11. [Limiti noti](#limiti-noti)
-12. [Componenti di terze parti](#componenti-di-terze-parti)
+## Contents
 
-## Funzionalità
+1. [Features](#features)
+2. [Architecture](#architecture)
+3. [Requirements](#requirements)
+4. [Installation](#installation)
+5. [Usage](#usage)
+6. [Output files](#output-files)
+7. [Configuration](#configuration)
+8. [Evaluation and performance](#evaluation-and-performance)
+9. [Project structure](#project-structure)
+10. [Privacy](#privacy)
+11. [Known limitations](#known-limitations)
+12. [Third party components](#third-party-components)
 
-* **Registrazione** dal microfono con pausa e ripresa. L'audio viene scritto su disco in modo continuo, perciò resta utilizzabile anche in caso di interruzione improvvisa.
-* **Trascrizione di file esistenti** in formato audio o video (wav, mp3, m4a, ogg, flac, mp4, mkv, webm e altri).
-* **Riconoscimento dei parlatori** (diarizzazione): il sistema individua quante persone hanno parlato e a chi appartiene ciascun intervento, anche senza conoscerne il numero in anticipo.
-* **Trascrizione per intervento** con Whisper large-v3-turbo, accelerata dalla GPU NVIDIA quando disponibile.
-* **Profili vocali persistenti**: dopo aver assegnato un nome a una voce, la stessa persona viene riconosciuta automaticamente nelle riunioni successive.
-* **Verbale automatico** generato da un modello linguistico locale tramite Ollama, con sintesi, argomenti discussi, decisioni, azioni da svolgere e questioni aperte.
+## Features
 
-## Architettura
+* **Recording** from any microphone, with pause and resume. Audio is written to disk continuously, so the recording remains usable even after an unexpected shutdown.
+* **Transcription of existing files** in audio or video formats (wav, mp3, m4a, ogg, flac, mp4, mkv, webm and more).
+* **Speaker diarization**: the system determines how many people spoke and who said what, even when the number of participants is not known in advance.
+* **Per turn transcription** with Whisper large-v3-turbo, accelerated by an NVIDIA GPU when available.
+* **Persistent voice profiles**: once a voice has been given a name, the same person is recognised automatically in later meetings.
+* **Automatic minutes** produced by a local language model through Ollama, covering summary, topics, decisions, action items and open questions.
 
-![Architettura del sistema](docs/architettura.svg)
+## Architecture
 
-Il flusso di elaborazione è articolato in tre fasi.
+![System architecture](docs/architecture.svg)
 
-### 1. Acquisizione
+The processing pipeline is organised in three stages.
 
-L'interfaccia grafica, realizzata con tkinter, registra il microfono selezionato in un file `audio.wav` (PCM 16 bit, mono). In alternativa l'utente può indicare un file già esistente. Ogni lavoro viene inserito in una coda ed elaborato da un thread dedicato, così l'interfaccia resta reattiva e consente di avviare una nuova registrazione mentre la precedente è in elaborazione.
+### 1. Capture
 
-### 2. Elaborazione
+The tkinter interface records the selected microphone into an `audio.wav` file (16 bit PCM, mono). Alternatively, the user can select an existing file. Every job is placed in a queue and handled by a dedicated worker thread, so the interface stays responsive and a new recording can start while the previous one is still being processed.
 
-| Passo | Componente | Descrizione |
+### 2. Processing
+
+| Step | Component | Description |
 |---|---|---|
-| Decodifica | PyAV | Conversione dell'audio a 16 kHz mono. |
-| Segmentazione | pyannote segmentation 3.0 (ONNX) | L'audio viene analizzato in finestre di 10 secondi con passo di 5 secondi. In ogni finestra il modello separa fino a tre voci locali e individua le sovrapposizioni. |
-| Impronte vocali | ERes2NetV2 (3D-Speaker) | Per ogni voce locale di ogni finestra viene calcolata un'impronta vocale usando tutto il parlato esclusivo di quella voce nella finestra. |
-| Raggruppamento | `diarizzazione.py` | Le impronte vengono centrate rispetto alla media della sessione, per eliminare le caratteristiche comuni dovute a stanza e microfono, e raggruppate con clustering gerarchico (distanza coseno). Una rifinitura iterativa riassegna ogni impronta al centroide più vicino ed elimina i gruppi con meno di 8 secondi di parlato, che sono quasi sempre frammenti di un'altra voce. |
-| Trascrizione | faster-whisper large-v3-turbo | Ogni intervento viene trascritto separatamente. Questa scelta evita che Whisper salti interi passaggi in corrispondenza dei cambi di voce e filtra le frasi spurie tipiche dei silenzi. |
+| Decoding | PyAV | Converts the audio to 16 kHz mono. |
+| Segmentation | pyannote segmentation 3.0 (ONNX) | Audio is analysed in 10 second windows with a 5 second hop. Within each window the model separates up to three local speakers and detects overlapping speech. |
+| Speaker embeddings | ERes2NetV2 (3D-Speaker) | One embedding is computed for every local speaker in every window, using all of that speaker's exclusive speech within the window. |
+| Clustering | `diarizzazione.py` | Embeddings are centred on the session mean, which removes traits shared by everyone in the recording such as room acoustics and microphone colouring, and then grouped by agglomerative hierarchical clustering on cosine distance. An iterative refinement reassigns every embedding to its nearest centroid and drops clusters with less than 8 seconds of speech, which are almost always fragments of another voice. |
+| Transcription | faster-whisper large-v3-turbo | Each turn is transcribed on its own. This prevents Whisper from skipping whole passages at speaker changes and filters out the spurious phrases typically hallucinated during silence. |
 
-### 3. Nomi, profili e riassunto
+### 3. Names, profiles and summary
 
-Al termine dell'elaborazione le impronte medie di ciascuna persona vengono confrontate con i profili salvati in `profili_voci.json`. L'abbinamento è univoco: ogni nome viene assegnato al massimo a una voce, a partire dalle coppie più simili. Nella finestra "Chi è chi?" l'utente ascolta un campione di ogni voce, conferma o corregge i nomi proposti e può unire due voci assegnando loro lo stesso nome. Al salvataggio i profili vengono aggiornati con una media mobile, così migliorano a ogni riunione.
+Once processing is complete, the average embedding of each speaker is compared with the profiles stored in `profili_voci.json`. Matching is one to one: each name is assigned to at most one voice, starting from the most similar pairs. In the "Chi è chi?" (who is who) dialog the user listens to a sample of every voice, confirms or corrects the suggested names, and can merge two voices by giving them the same name. On save, profiles are updated with a running average, so they improve with every meeting.
 
-Il riassunto viene quindi generato dal modello `qwen3.5:9b` eseguito da Ollama. Le trascrizioni lunghe vengono suddivise in blocchi: da ciascun blocco si estraggono appunti strutturati, che vengono poi fusi nel verbale finale. Prima del riassunto il modello Whisper viene rimosso dalla memoria della GPU per lasciare spazio al modello linguistico.
+The summary is then generated by the `qwen3.5:9b` model served by Ollama. Long transcripts are split into chunks: structured notes are extracted from each chunk and then merged into the final minutes. Before summarisation the Whisper model is released from GPU memory to make room for the language model.
 
-## Requisiti
+## Requirements
 
-| Componente | Requisito |
+| Component | Requirement |
 |---|---|
-| Sistema operativo | Windows 10 o 11 |
-| Python | 3.14 (versione con cui il progetto è sviluppato e verificato) |
-| GPU | Facoltativa. Consigliata una scheda NVIDIA con almeno 6 GB di memoria. Senza GPU la trascrizione usa la CPU ed è più lenta. |
-| Spazio su disco | Circa 2 GB per i modelli, più lo spazio per le registrazioni (circa 330 MB per ora di audio a 48 kHz). |
-| Ollama | Facoltativo, necessario solo per il riassunto. Il modello predefinito `qwen3.5:9b` richiede circa 6,5 GB. |
+| Operating system | Windows 10 or 11 |
+| Python | 3.14 (the version the project is developed and tested with) |
+| GPU | Optional. An NVIDIA card with at least 6 GB of memory is recommended. Without a GPU, transcription runs on the CPU and is slower. |
+| Disk space | About 2 GB for the models, plus storage for recordings (about 330 MB per hour of audio at 48 kHz). |
+| Ollama | Optional, required only for summaries. The default `qwen3.5:9b` model needs about 6.5 GB. |
 
-## Installazione
+## Installation
 
-1. Clonare il repository e creare l'ambiente virtuale:
+1. Clone the repository and create a virtual environment:
 
    ```powershell
-   git clone https://github.com/SinghProbjot/registratore-riunioni.git
-   cd registratore-riunioni
+   git clone https://github.com/SinghProbjot/quorum.git
+   cd quorum
    python -m venv .venv
    .venv\Scripts\python -m pip install -r requirements.txt
    ```
 
-2. Scaricare i modelli per il riconoscimento delle voci:
+2. Download the speaker recognition models:
 
    ```powershell
    .venv\Scripts\python scarica_modelli.py
    ```
 
-   Il modello Whisper (circa 1,6 GB) viene scaricato automaticamente alla prima trascrizione.
+   The Whisper model (about 1.6 GB) is downloaded automatically on the first transcription.
 
-3. Per il riassunto, installare [Ollama](https://ollama.com) e scaricare il modello:
+3. For summaries, install [Ollama](https://ollama.com) and pull the model:
 
    ```powershell
    ollama pull qwen3.5:9b
    ```
 
-La versione di PyAV deve restare inferiore alla 16, poiché le versioni successive non sono compatibili con faster-whisper 1.2.1. Il vincolo è già indicato in `requirements.txt`.
+PyAV must stay below version 16, because later releases are not compatible with faster-whisper 1.2.1. The constraint is already declared in `requirements.txt`.
 
-## Utilizzo
+## Usage
 
-### Interfaccia grafica
+### Graphical interface
 
-Avviare `Avvia registratore.bat` con un doppio clic.
+Double click `Avvia Quorum.bat`.
 
-1. Inserire il titolo della riunione (facoltativo), scegliere il microfono e, se noto, il numero di partecipanti. Con l'opzione "Automatico" il numero viene stimato dal sistema.
-2. Premere **Registra** oppure il tasto F9. Durante la registrazione sono disponibili la pausa e l'indicatore di livello.
-3. Premere **Stop**. La registrazione viene messa in coda per l'elaborazione.
-4. Al termine si apre la finestra **Chi è chi?**. Le voci già note sono indicate come riconosciute. Per le altre è possibile ascoltare un campione e scrivere il nome.
-5. Con **Salva e apri** i nomi vengono applicati alla trascrizione e memorizzati nei profili. Se la relativa opzione è attiva, parte poi la generazione del riassunto.
+1. Optionally enter a meeting title, choose the microphone and, if known, the number of participants. With "Automatico" the number is estimated by the system.
+2. Press **Registra** (record) or F9. A pause button and a level meter are available while recording.
+3. Press **Stop**. The recording is queued for processing.
+4. When processing ends, the **Chi è chi?** dialog opens. Known voices are marked as recognised. For the others you can play a sample and type a name.
+5. **Salva e apri** (save and open) applies the names to the transcript and stores them in the voice profiles. If the corresponding option is enabled, summary generation starts next.
 
-Funzioni aggiuntive:
+Additional buttons:
 
-| Pulsante | Funzione |
+| Button | Function |
 |---|---|
-| Trascrivi file... | Elabora un file audio o video già esistente. |
-| Rinomina voci... | Riapre la finestra dei nomi per una riunione già elaborata. |
-| Riassunto... | Genera il riassunto per una riunione già trascritta. |
-| Apri cartella | Apre la cartella delle registrazioni. |
+| Trascrivi file... | Processes an existing audio or video file. |
+| Rinomina voci... | Reopens the naming dialog for a meeting that has already been processed. |
+| Riassunto... | Generates the summary for a meeting that has already been transcribed. |
+| Apri cartella | Opens the recordings folder. |
 
-### Riga di comando
+### Command line
 
 ```powershell
-# Trascrizione di un file (il numero di persone è facoltativo)
-.venv\Scripts\python registratore.py riunione.mp3 4
+# Transcribe a file (the number of speakers is optional)
+.venv\Scripts\python registratore.py meeting.mp3 4
 
-# Riassunto di una riunione già trascritta
+# Summarise a meeting that has already been transcribed
 .venv\Scripts\python riassunto.py registrazioni\2026-11-20_10-00_Produzione
 ```
 
-## File prodotti
+## Output files
 
-Ogni riunione viene salvata in una cartella dedicata `registrazioni/<data>_<ora>_<titolo>/`:
+Each meeting is saved in its own folder, `registrazioni/<date>_<time>_<title>/`:
 
-| File | Contenuto |
+| File | Content |
 |---|---|
-| `audio.wav` | Registrazione originale (assente se si è trascritto un file esterno). |
-| `trascrizione.txt` | Trascrizione leggibile con orari e nomi dei partecipanti. |
-| `trascrizione.json` | Dati strutturati: interventi, nomi, impronte vocali per persona, voci riconosciute, tempi di elaborazione. |
-| `riassunto.md` | Verbale in formato Markdown. |
-| `errore.txt` | Presente solo in caso di errore, con il dettaglio tecnico. |
+| `audio.wav` | Original recording (absent when an external file was transcribed). |
+| `trascrizione.txt` | Readable transcript with timestamps and participant names. |
+| `trascrizione.json` | Structured data: turns, names, per speaker embeddings, recognised voices, processing times. |
+| `riassunto.md` | Meeting minutes in Markdown. |
+| `errore.txt` | Present only if an error occurred, with technical details. |
 
-Il verbale contiene sempre le seguenti sezioni: Sintesi, Argomenti discussi, Decisioni, Azioni da fare (tabella con responsabile, attività e scadenza) e Questioni aperte.
+The minutes always contain the same sections: summary, topics discussed, decisions, action items (a table of owner, task and deadline) and open questions.
 
-## Parametri di configurazione
+## Configuration
 
-I parametri principali sono definiti all'inizio delle sezioni corrispondenti dei moduli.
+The main parameters are defined at the top of the relevant section of each module.
 
-| Parametro | File | Valore | Significato |
+| Parameter | File | Value | Meaning |
 |---|---|---|---|
-| `EMB_MODEL` | `registratore.py` | ERes2NetV2 | Modello per le impronte vocali, da collocare in `models/emb/`. |
-| `DIAR_THRESHOLD` | `registratore.py` | 0,8 | Distanza coseno massima tra impronte della stessa persona. Valori più bassi separano più voci. |
-| `MIN_SPEAKER_SPEECH` | `registratore.py` | 8 s | Parlato minimo perché un gruppo sia considerato una persona distinta. |
-| `PROFILE_MIN_SIM` | `registratore.py` | 0,78 | Somiglianza minima per riconoscere una voce salvata. |
-| `MODEL` | `riassunto.py` | `qwen3.5:9b` | Modello Ollama usato per il riassunto. |
-| `CHUNK_CHARS` | `riassunto.py` | 14.000 | Dimensione dei blocchi di trascrizione nel riassunto delle riunioni lunghe. |
+| `EMB_MODEL` | `registratore.py` | ERes2NetV2 | Speaker embedding model, located in `models/emb/`. |
+| `DIAR_THRESHOLD` | `registratore.py` | 0.8 | Maximum cosine distance between embeddings of the same person. Lower values split voices more aggressively. |
+| `MIN_SPEAKER_SPEECH` | `registratore.py` | 8 s | Minimum amount of speech for a cluster to count as a separate person. |
+| `PROFILE_MIN_SIM` | `registratore.py` | 0.78 | Minimum similarity to recognise a saved voice. |
+| `MODEL` | `riassunto.py` | `qwen3.5:9b` | Ollama model used for summaries. |
+| `CHUNK_CHARS` | `riassunto.py` | 14,000 | Chunk size used when summarising long transcripts. |
 
-I profili sono legati al modello di impronte con cui sono stati creati: se si cambia `EMB_MODEL`, i profili esistenti vengono ignorati e le voci vanno nominate di nuovo.
+Profiles are tied to the embedding model that created them: if `EMB_MODEL` changes, existing profiles are ignored and voices need to be named again.
 
-## Validazione e prestazioni
+## Evaluation and performance
 
-I parametri sono stati scelti su un banco di prova di riunioni simulate da 3 a 6 partecipanti, costruite con registrazioni di parlato italiano a cui sono stati aggiunti riverbero ambientale, rumore di fondo e volumi diversi tra i partecipanti. La metrica è il Diarization Error Rate (DER), cioè la quota di parlato attribuita alla persona sbagliata.
+Parameters were selected on a benchmark of simulated meetings with 3 to 6 participants, built from Italian speech recordings with added room reverberation, background noise and different loudness for each participant. The metric is the Diarization Error Rate (DER), the share of speech attributed to the wrong person.
 
-| Configurazione | DER, numero di persone automatico | DER, numero di persone indicato |
+| Configuration | DER, automatic speaker count | DER, known speaker count |
 |---|---|---|
-| Diarizzazione sherpa-onnx standard (versione iniziale) | 60% | da 37 a 46% |
-| Nuovo modulo con modello ResNet34 | da 31 a 34% | 30% |
-| Nuovo modulo con modello ERes2NetV2 (attuale) | da 17 a 18% | 16% |
+| Standard sherpa-onnx diarization (initial version) | 60% | 37% to 46% |
+| New pipeline with ResNet34 embeddings | 31% to 34% | 30% |
+| New pipeline with ERes2NetV2 embeddings (current) | 17% to 18% | 16% |
 
-Riconoscimento dei profili tra riunioni diverse, con soglia 0,78: circa il 96% delle persone già salvate viene riconosciuto, con meno dell'1% di scambi tra persone diverse.
+Recognition of saved profiles across different meetings, at a threshold of 0.78: about 96% of known people are recognised, with fewer than 1% of mix ups between different people.
 
-Tempi indicativi su un portatile con GPU NVIDIA RTX 4050 da 6 GB:
+Indicative timings on a laptop with an NVIDIA RTX 4050 (6 GB):
 
-| Fase | Tempo per un'ora di riunione |
+| Stage | Time per hour of meeting |
 |---|---|
-| Riconoscimento delle voci (CPU) | circa 4 minuti |
-| Trascrizione (GPU) | circa 5 minuti |
-| Riassunto (Ollama) | alcuni minuti, in funzione della lunghezza |
+| Speaker recognition (CPU) | about 4 minutes |
+| Transcription (GPU) | about 5 minutes |
+| Summary (Ollama) | a few minutes, depending on length |
 
-Il banco di prova simula condizioni acustiche difficili. In riunioni reali i risultati dipendono soprattutto dalla posizione del microfono rispetto ai partecipanti.
+The benchmark simulates difficult acoustic conditions. In real meetings, results depend mostly on where the microphone is placed relative to the participants.
 
-## Struttura del progetto
+## Project structure
 
 ```
-registratore-riunioni/
-├── registratore.py          Interfaccia grafica, registrazione, pipeline di elaborazione, profili
-├── diarizzazione.py         Segmentazione, impronte vocali, raggruppamento, abbinamento profili
-├── riassunto.py             Generazione del verbale tramite Ollama
-├── scarica_modelli.py       Download dei modelli di segmentazione e impronte vocali
-├── Avvia registratore.bat   Avvio rapido dell'interfaccia
-├── requirements.txt         Dipendenze Python
+quorum/
+├── registratore.py          Interface, recording, processing pipeline, voice profiles
+├── diarizzazione.py         Segmentation, speaker embeddings, clustering, profile matching
+├── riassunto.py             Minutes generation through Ollama
+├── scarica_modelli.py       Downloads the segmentation and embedding models
+├── Avvia Quorum.bat         Quick launcher for the interface
+├── requirements.txt         Python dependencies
 ├── docs/
-│   └── architettura.svg     Schema dell'architettura
-├── models/                  Modelli scaricati (esclusi dal repository)
-└── registrazioni/           Riunioni elaborate (escluse dal repository)
+│   └── architecture.svg     Architecture diagram
+├── models/                  Downloaded models (not tracked)
+└── registrazioni/           Processed meetings (not tracked)
 ```
 
-## Riservatezza dei dati
+## Privacy
 
-* Tutti i modelli vengono eseguiti in locale. La sola connessione di rete avviene al primo avvio, per scaricare i modelli.
-* Ollama viene interrogato all'indirizzo locale `localhost:11434`.
-* Il file `profili_voci.json` contiene impronte vocali, che costituiscono dati biometrici ai sensi del GDPR. È consigliabile informare i partecipanti e conservarlo con le stesse cautele riservate alle registrazioni.
-* Le cartelle `registrazioni/` e `models/` e il file `profili_voci.json` sono esclusi dal controllo di versione tramite `.gitignore`.
+* All models run locally. The only network access happens on first use, to download the models.
+* Ollama is queried at the local address `localhost:11434`.
+* `profili_voci.json` contains voice embeddings, which are biometric data under the GDPR. Participants should be informed, and the file should be protected with the same care as the recordings.
+* The `registrazioni/` and `models/` folders and the `profili_voci.json` file are excluded from version control through `.gitignore`.
 
-## Limiti noti
+## Known limitations
 
-* Il parlato sovrapposto viene attribuito a una sola persona.
-* Interventi molto brevi (sotto il secondo) possono essere assegnati alla persona che parla subito prima o subito dopo.
-* Il riassunto è generato automaticamente e va verificato con la trascrizione prima della diffusione.
-* La registrazione acquisisce un solo microfono, in mono. Per le riunioni ibride i partecipanti remoti vengono registrati solo se il loro audio è riprodotto dagli altoparlanti della sala.
+* Overlapping speech is attributed to a single person.
+* Very short turns (under one second) may be assigned to the person speaking just before or after.
+* Summaries are generated automatically and should be checked against the transcript before being shared.
+* Recording captures a single microphone, in mono. In hybrid meetings, remote participants are recorded only if their audio is played through the room speakers.
 
-## Componenti di terze parti
+## Third party components
 
-| Componente | Utilizzo | Licenza |
+| Component | Purpose | License |
 |---|---|---|
-| [faster-whisper](https://github.com/SYSTRAN/faster-whisper) e modello Whisper large-v3-turbo | Trascrizione | MIT |
-| [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) | Estrazione delle impronte vocali | Apache 2.0 |
-| [pyannote segmentation 3.0](https://huggingface.co/pyannote/segmentation-3.0) | Segmentazione dei parlatori | MIT |
-| [3D-Speaker ERes2NetV2](https://github.com/modelscope/3D-Speaker) | Impronte vocali | Apache 2.0 |
-| [Ollama](https://ollama.com) e modello Qwen | Riassunto | Si rimanda alle rispettive licenze |
+| [faster-whisper](https://github.com/SYSTRAN/faster-whisper) and the Whisper large-v3-turbo model | Transcription | MIT |
+| [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) | Speaker embedding inference | Apache 2.0 |
+| [pyannote segmentation 3.0](https://huggingface.co/pyannote/segmentation-3.0) | Speaker segmentation | MIT |
+| [3D-Speaker ERes2NetV2](https://github.com/modelscope/3D-Speaker) | Speaker embeddings | Apache 2.0 |
+| [Ollama](https://ollama.com) and the Qwen model | Summarisation | See the respective licenses |
